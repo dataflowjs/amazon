@@ -1,0 +1,82 @@
+package main
+
+import "github.com/go-rod/rod/lib/input"
+
+func getKey(s string) input.Key {
+	switch s {
+	case "0":
+		return input.Digit0
+	case "1":
+		return input.Digit1
+	case "2":
+		return input.Digit2
+	case "3":
+		return input.Digit3
+	case "4":
+		return input.Digit4
+	case "5":
+		return input.Digit5
+	case "6":
+		return input.Digit6
+	case "7":
+		return input.Digit7
+	case "8":
+		return input.Digit8
+	case "9":
+		return input.Digit9
+	case "Q":
+		return input.KeyQ
+	case "W":
+		return input.KeyW
+	case "E":
+		return input.KeyE
+	case "R":
+		return input.KeyR
+	case "T":
+		return input.KeyT
+	case "Y":
+		return input.KeyY
+	case "U":
+		return input.KeyU
+	case "I":
+		return input.KeyI
+	case "O":
+		return input.KeyO
+	case "P":
+		return input.KeyP
+	case "A":
+		return input.KeyA
+	case "S":
+		return input.KeyS
+	case "D":
+		return input.KeyD
+	case "F":
+		return input.KeyF
+	case "G":
+		return input.KeyG
+	case "H":
+		return input.KeyH
+	case "J":
+		return input.KeyJ
+	case "K":
+		return input.KeyK
+	case "L":
+		return input.KeyL
+	case "Z":
+		return input.KeyZ
+	case "X":
+		return input.KeyX
+	case "C":
+		return input.KeyC
+	case "V":
+		return input.KeyV
+	case "B":
+		return input.KeyB
+	case "N":
+		return input.KeyN
+	case "M":
+		return input.KeyM
+	}
+
+	return input.Tab
+}

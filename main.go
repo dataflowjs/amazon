@@ -1,10 +1,15 @@
 package main
 
 import (
-	"fmt"
+	"errors"
 	"io"
 	"log"
 	"os"
+
+	"github.com/gin-gonic/gin"
+	"google.golang.org/api/sheets/v4"
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
 )
 
 func init() {
@@ -18,23 +23,21 @@ func init() {
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
 }
 
+var ASINs []string
+var client *sheets.Service
+var spreadsheetID = "1OCtJlR3yZRaQwzX7joW0GnwiYUcme84WyMr0w3I0KNY"
+var sheetName = "Ungating Sheet Template"
+var Db *gorm.DB
+
 func main() {
-	// Replace with the path to your credentials JSON file.
 	credentialsFilePath := "credentials.json"
 
-	// Initialize the Google Sheets API client.
-	client, err := createGoogleSheetsClient(credentialsFilePath)
+	var err error
+	client, err = createGoogleSheetsClient(credentialsFilePath)
 	if err != nil {
 		log.Fatalf("Unable to create Google Sheets client: %v", err)
 	}
 
-	// Replace with the ID of your Google Sheet.
-	spreadsheetID := "1OCtJlR3yZRaQwzX7joW0GnwiYUcme84WyMr0w3I0KNY"
-
-	// Replace with the name or index of the sheet you want to access.
-	sheetName := "Ungating Sheet Template"
-
-	// Retrieve data from the specified sheet.
 	data, err := getSheetData(client, spreadsheetID, sheetName)
 	if err != nil {
 		log.Fatalf("Unable to retrieve data from sheet: %v", err)
@@ -42,17 +45,40 @@ func main() {
 
 	log.Println("assins")
 	for i, row := range data {
-		if row[1] == "MANUAL INPUT BY OUR TEAM" || row[1] == "ASIN" {
+		if i == 0 || i == 1 {
 			continue
 		}
 
-		fmt.Println(row[1])
-
-		if i == 10 {
-			break
-		}
+		ASINs = append(ASINs, row[1].(string))
 	}
 
 	instance := Instance{}
 	instance.SetupBrowser()
+	instance.Process()
+
+	Db, err = gorm.Open(sqlite.Open("database.db"), &gorm.Config{})
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	err = Db.AutoMigrate()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	err = Db.First(&Stg).Error
+
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		if err = Db.Create(&Stg).Error; err != nil {
+			log.Println(err)
+		}
+	}
+
+	router := gin.Default()
+	router.LoadHTMLGlob("templates/**/*")
+	router.Static("/assets", "./assets")
+
+	router.GET("/", IndexHandler)
+
+	router.Run(":8080")
 }

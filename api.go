@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"os"
 
@@ -10,17 +11,14 @@ import (
 	"google.golang.org/api/sheets/v4"
 )
 
-// createGoogleSheetsClient creates a Google Sheets API client using the provided credentials file.
 func createGoogleSheetsClient(credentialsFilePath string) (*sheets.Service, error) {
 	ctx := context.Background()
 
-	// Read credentials file.
 	creds, err := google.CredentialsFromJSON(ctx, []byte(ReadFile(credentialsFilePath)), sheets.SpreadsheetsScope)
 	if err != nil {
 		return nil, err
 	}
 
-	// Create Google Sheets API client.
 	client, err := sheets.NewService(ctx, option.WithCredentials(creds))
 	if err != nil {
 		return nil, err
@@ -29,12 +27,9 @@ func createGoogleSheetsClient(credentialsFilePath string) (*sheets.Service, erro
 	return client, nil
 }
 
-// getSheetData retrieves data from a specific sheet in the Google Sheet.
 func getSheetData(client *sheets.Service, spreadsheetID, sheetName string) ([][]interface{}, error) {
-	// Specify the range to retrieve data from (e.g., "A1:B10").
 	readRange := sheetName
 
-	// Retrieve data from the specified range.
 	resp, err := client.Spreadsheets.Values.Get(spreadsheetID, readRange).Do()
 	if err != nil {
 		return nil, err
@@ -43,11 +38,94 @@ func getSheetData(client *sheets.Service, spreadsheetID, sheetName string) ([][]
 	return resp.Values, nil
 }
 
-// ReadFile reads the content of a file and returns it as a string.
 func ReadFile(filename string) string {
 	data, err := os.ReadFile(filename)
 	if err != nil {
 		log.Fatalf("Unable to read file: %v", err)
 	}
 	return string(data)
+}
+
+func setSheetData(client *sheets.Service, spreadsheetID, sheetName string, column, row int, value string) error {
+	columnLetter := getColumnLetter(column)
+
+	cellRange := fmt.Sprintf("%s%d", columnLetter, row)
+
+	values := [][]interface{}{{value}}
+	data := &sheets.ValueRange{
+		Values: values,
+	}
+
+	_, err := client.Spreadsheets.Values.Update(spreadsheetID, sheetName+"!"+cellRange, data).
+		ValueInputOption("RAW").Do()
+	return err
+}
+
+func getColumnLetter(column int) string {
+	const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+	if column <= 0 || column > 26 {
+		return ""
+	}
+	return string(alphabet[column-1])
+}
+
+func setCellBackgroundColor(client *sheets.Service, spreadsheetID, sheetName string, column, row int, color *sheets.Color) error {
+	sheet, err := getSheetInfo(client, spreadsheetID, sheetName)
+	if err != nil {
+		return err
+	}
+
+	gridRange := &sheets.GridRange{
+		SheetId:          sheet.Properties.SheetId,
+		StartRowIndex:    int64(row) - 1,
+		EndRowIndex:      int64(row),
+		StartColumnIndex: int64(column) - 1,
+		EndColumnIndex:   int64(column),
+	}
+
+	log.Println(sheet.Properties.SheetId)
+
+	cellData := &sheets.CellData{
+		UserEnteredFormat: &sheets.CellFormat{
+			BackgroundColor: color,
+		},
+	}
+
+	rows := []*sheets.RowData{
+		{
+			Values: []*sheets.CellData{cellData},
+		},
+	}
+
+	updateRequest := &sheets.UpdateCellsRequest{
+		Range:  gridRange,
+		Fields: "userEnteredFormat.backgroundColor",
+		Rows:   rows,
+	}
+
+	batchUpdateRequest := &sheets.BatchUpdateSpreadsheetRequest{
+		Requests: []*sheets.Request{
+			{
+				UpdateCells: updateRequest,
+			},
+		},
+	}
+
+	_, err = client.Spreadsheets.BatchUpdate(spreadsheetID, batchUpdateRequest).Do()
+	return err
+}
+
+func getSheetInfo(client *sheets.Service, spreadsheetID, sheetName string) (*sheets.Sheet, error) {
+	spreadsheet, err := client.Spreadsheets.Get(spreadsheetID).Do()
+	if err != nil {
+		return nil, err
+	}
+
+	for _, sheet := range spreadsheet.Sheets {
+		if sheet.Properties.Title == sheetName {
+			return sheet, nil
+		}
+	}
+
+	return nil, fmt.Errorf("Sheet '%s' not found", sheetName)
 }
